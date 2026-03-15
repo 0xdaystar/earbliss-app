@@ -14,7 +14,7 @@ import OnboardingScreen from "./screens/OnboardingScreen";
 import DailyCheckin from "./screens/DailyCheckin";
 
 function AppShell() {
-  const { screen, appView, t } = useApp();
+  const { screen, appView, t, dark } = useApp();
   const soundEngine = useSoundEngine();
   const redLightTimer = useRedLightTimer();
   const progress = useProgress();
@@ -26,6 +26,13 @@ function AppShell() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Update theme-color meta tag and body background when theme changes
+  useEffect(() => {
+    const bg = dark ? "#0A0E1A" : "#F5F7FA";
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bg);
+    document.body.style.background = bg;
+  }, [dark]);
 
   const isDesktop = windowWidth >= 768;
   const showNav = !isDesktop && appView === "main";
@@ -60,7 +67,7 @@ function AppShell() {
     <div
       style={{
         width: "100%",
-        height: "100vh",
+        height: "100dvh",
         background: t.bg,
         display: "flex",
         overflow: "hidden",
