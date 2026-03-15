@@ -112,8 +112,10 @@ export function useSoundEngine() {
   const nodesRef = useRef({});
   const gainRef = useRef(null);
 
-  // HTML Audio element ref (for mp3 file sounds — enables iOS background playback)
+  // HTML Audio crossfade refs (for mp3 file sounds — enables iOS background playback)
+  // Stores: { a: Audio, b: Audio, active: 'a'|'b', fadeTimer, checkTimer }
   const htmlAudioRef = useRef(null);
+  const volumeRef = useRef(0.65); // tracks current volume for crossfade access
 
   // Shared refs
   const timerRef = useRef(null);
@@ -147,14 +149,18 @@ export function useSoundEngine() {
     nodesRef.current = {};
   }, []);
 
-  // Stop HTML audio element
+  // Stop HTML audio crossfade system
   const stopHtmlAudio = useCallback(() => {
-    if (htmlAudioRef.current) {
-      htmlAudioRef.current.pause();
-      htmlAudioRef.current.currentTime = 0;
-      htmlAudioRef.current.src = "";
-      htmlAudioRef.current = null;
-    }
+    const ref = htmlAudioRef.current;
+    if (!ref) return;
+    if (ref.fadeTimer) clearInterval(ref.fadeTimer);
+    if (ref.checkTimer) clearInterval(ref.checkTimer);
+    [ref.a, ref.b].forEach((el) => {
+      if (!el) return;
+      try { el.pause(); } catch (e) {}
+      el.src = "";
+    });
+    htmlAudioRef.current = null;
   }, []);
 
   // Stop everything
@@ -180,15 +186,66 @@ export function useSoundEngine() {
     }
   }, []);
 
-  // Play an audio file preset via HTML <audio> (background-safe on iOS)
+  // Play an audio file with crossfade looping (background-safe on iOS)
   const playHtmlAudio = useCallback((src, vol) => {
     stopHtmlAudio();
-    const audio = new Audio(src);
-    audio.loop = true;
-    audio.volume = vol;
-    audio.play().catch(() => {});
-    htmlAudioRef.current = audio;
+    volumeRef.current = vol;
+
+    const CROSSFADE_SEC = 3; // seconds of crossfade overlap
+    const FADE_INTERVAL_MS = 50; // how often we update volume during fade
+
+    const a = new Audio(src);
+    const b = new Audio(src);
+    a.preload = "auto";
+    b.preload = "auto";
+
+    const state = { a, b, active: "a", fadeTimer: null, checkTimer: null };
+    htmlAudioRef.current = state;
     playingTypeRef.current = "htmlAudio";
+
+    const getActive = () => (state.active === "a" ? state.a : state.b);
+    const getStandby = () => (state.active === "a" ? state.b : state.a);
+
+    const startCrossfade = () => {
+      if (state.fadeTimer) return; // already fading
+
+      const playing = getActive();
+      const next = getStandby();
+      const v = volumeRef.current;
+
+      next.currentTime = 0;
+      next.volume = 0;
+      next.play().catch(() => {});
+
+      const totalSteps = (CROSSFADE_SEC * 1000) / FADE_INTERVAL_MS;
+      let step = 0;
+
+      state.fadeTimer = setInterval(() => {
+        step++;
+        const progress = step / totalSteps;
+        playing.volume = v * Math.max(0, 1 - progress);
+        next.volume = v * Math.min(1, progress);
+
+        if (step >= totalSteps) {
+          clearInterval(state.fadeTimer);
+          state.fadeTimer = null;
+          playing.pause();
+          playing.currentTime = 0;
+          state.active = state.active === "a" ? "b" : "a";
+        }
+      }, FADE_INTERVAL_MS);
+    };
+
+    // Poll to detect when we're near the end of the active track
+    state.checkTimer = setInterval(() => {
+      const active = getActive();
+      if (active.duration && active.duration - active.currentTime <= CROSSFADE_SEC && !state.fadeTimer) {
+        startCrossfade();
+      }
+    }, 200);
+
+    a.volume = vol;
+    a.play().catch(() => {});
   }, [stopHtmlAudio]);
 
   // Build Web Audio graph for synthesized sounds
@@ -340,8 +397,13 @@ export function useSoundEngine() {
           const progress = Math.min(el / totalBedtimeMs, 1);
           const fadedVolume = volume * (1 - progress);
 
+          // Update volumeRef so crossfade picks up the faded value
+          volumeRef.current = fadedVolume;
+
           if (playingTypeRef.current === "htmlAudio" && htmlAudioRef.current) {
-            htmlAudioRef.current.volume = fadedVolume;
+            const ref = htmlAudioRef.current;
+            const active = ref.active === "a" ? ref.a : ref.b;
+            if (active && !ref.fadeTimer) active.volume = fadedVolume;
           } else if (playingTypeRef.current === "webAudio" && gainRef.current && audioCtxRef.current) {
             gainRef.current.gain.setValueAtTime(fadedVolume, audioCtxRef.current.currentTime);
           }
@@ -426,8 +488,14 @@ export function useSoundEngine() {
   const changeVolume = useCallback(
     (newVol) => {
       setVolume(newVol);
+      volumeRef.current = newVol;
       if (playingTypeRef.current === "htmlAudio" && htmlAudioRef.current) {
-        htmlAudioRef.current.volume = newVol;
+        // Update the currently active audio element's volume
+        const ref = htmlAudioRef.current;
+        const active = ref.active === "a" ? ref.a : ref.b;
+        if (active && !ref.fadeTimer) {
+          active.volume = newVol;
+        }
       } else if (playingTypeRef.current === "webAudio" && gainRef.current && audioCtxRef.current) {
         gainRef.current.gain.setValueAtTime(newVol, audioCtxRef.current.currentTime);
       }
