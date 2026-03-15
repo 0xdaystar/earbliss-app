@@ -107,14 +107,20 @@ export function useSoundEngine() {
   const [bedtimeDuration, setBedtimeDuration] = useState(30); // minutes
   const [bedtimeTimeLeft, setBedtimeTimeLeft] = useState(null);
 
+  // Web Audio API refs (for synthesized sounds)
   const audioCtxRef = useRef(null);
   const nodesRef = useRef({});
+  const gainRef = useRef(null);
+
+  // HTML Audio element ref (for mp3 file sounds — enables iOS background playback)
+  const htmlAudioRef = useRef(null);
+
+  // Shared refs
   const timerRef = useRef(null);
   const bedtimeTimerRef = useRef(null);
   const startTimeRef = useRef(null);
-  const gainRef = useRef(null);
   const bedtimeStartRef = useRef(null);
-  const audioBufferCache = useRef({}); // cache decoded audio buffers
+  const playingTypeRef = useRef(null); // "webAudio" or "htmlAudio"
 
   const getAudioContext = useCallback(() => {
     if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
@@ -126,8 +132,8 @@ export function useSoundEngine() {
     return audioCtxRef.current;
   }, []);
 
-  const stopAllNodes = useCallback(() => {
-    // Mark current nodes as cancelled so pending async loads won't play
+  // Stop all Web Audio nodes
+  const stopWebAudioNodes = useCallback(() => {
     if (nodesRef.current) nodesRef.current._cancelled = true;
     Object.entries(nodesRef.current).forEach(([key, node]) => {
       if (key === "_cancelled") return;
@@ -141,41 +147,60 @@ export function useSoundEngine() {
     nodesRef.current = {};
   }, []);
 
-  const loadAudioBuffer = useCallback(async (ctx, src) => {
-    if (audioBufferCache.current[src]) {
-      return audioBufferCache.current[src];
+  // Stop HTML audio element
+  const stopHtmlAudio = useCallback(() => {
+    if (htmlAudioRef.current) {
+      htmlAudioRef.current.pause();
+      htmlAudioRef.current.currentTime = 0;
+      htmlAudioRef.current.src = "";
+      htmlAudioRef.current = null;
     }
-    const response = await fetch(src);
-    const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-    audioBufferCache.current[src] = audioBuffer;
-    return audioBuffer;
   }, []);
 
-  const buildSoundGraph = useCallback(
+  // Stop everything
+  const stopAllSound = useCallback(() => {
+    stopWebAudioNodes();
+    stopHtmlAudio();
+    playingTypeRef.current = null;
+  }, [stopWebAudioNodes, stopHtmlAudio]);
+
+  // Update Media Session API for lock screen controls
+  const updateMediaSession = useCallback((soundName, playing) => {
+    if (!("mediaSession" in navigator)) return;
+
+    if (playing) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: soundName,
+        artist: "EarBliss",
+        album: "Tinnitus Relief",
+      });
+      navigator.mediaSession.playbackState = "playing";
+    } else {
+      navigator.mediaSession.playbackState = "none";
+    }
+  }, []);
+
+  // Play an audio file preset via HTML <audio> (background-safe on iOS)
+  const playHtmlAudio = useCallback((src, vol) => {
+    stopHtmlAudio();
+    const audio = new Audio(src);
+    audio.loop = true;
+    audio.volume = vol;
+    audio.play().catch(() => {});
+    htmlAudioRef.current = audio;
+    playingTypeRef.current = "htmlAudio";
+  }, [stopHtmlAudio]);
+
+  // Build Web Audio graph for synthesized sounds
+  const buildSynthGraph = useCallback(
     (preset, ctx, masterGain) => {
-      stopAllNodes();
+      stopWebAudioNodes();
       const p = SOUND_PRESETS[preset];
       if (!p) return;
 
-      // For custom Hz, override frequency with user-set value
       const freq = p.isCustom ? customFrequency : p.frequency;
 
-      if (p.type === "audio") {
-        // Real audio file playback
-        loadAudioBuffer(ctx, p.src).then((buffer) => {
-          // Guard: if user switched away before the file loaded, don't play
-          if (nodesRef.current._cancelled) return;
-
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          source.loop = true;
-          source.connect(masterGain);
-          source.start();
-          nodesRef.current.source = source;
-        });
-      } else if (p.type === "noise") {
-        // Noise-based sounds
+      if (p.type === "noise") {
         const buffer = createNoiseBuffer(ctx, p.noiseType || "white");
         const source = ctx.createBufferSource();
         source.buffer = buffer;
@@ -183,7 +208,6 @@ export function useSoundEngine() {
 
         let lastNode = source;
 
-        // Optional high-pass filter
         if (p.highPassFreq) {
           const hp = ctx.createBiquadFilter();
           hp.type = "highpass";
@@ -193,7 +217,6 @@ export function useSoundEngine() {
           nodesRef.current.highpass = hp;
         }
 
-        // Optional amplitude modulation for natural feel
         if (p.modulationRate) {
           const modGain = ctx.createGain();
           modGain.gain.value = 1 - (p.modulationDepth || 0.3);
@@ -223,7 +246,6 @@ export function useSoundEngine() {
         osc.type = p.type || "sine";
         osc.frequency.value = freq;
 
-        // Frequency modulation for warmth
         if (p.modulationRate && p.modulationDepth) {
           const modOsc = ctx.createOscillator();
           modOsc.frequency.value = p.modulationRate;
@@ -236,7 +258,6 @@ export function useSoundEngine() {
           nodesRef.current.modGain = modGain;
         }
 
-        // Binaural beat — second oscillator slightly offset, panned to other ear
         if (p.binauralBeat) {
           const panL = ctx.createStereoPanner();
           panL.pan.value = -1;
@@ -264,22 +285,35 @@ export function useSoundEngine() {
         osc.start();
         nodesRef.current.osc = osc;
       }
+      playingTypeRef.current = "webAudio";
     },
-    [stopAllNodes, customFrequency, loadAudioBuffer]
+    [stopWebAudioNodes, customFrequency]
   );
 
   const play = useCallback(
     (preset) => {
-      const ctx = getAudioContext();
-      const masterGain = ctx.createGain();
-      masterGain.gain.value = volume;
-      masterGain.connect(ctx.destination);
-      gainRef.current = masterGain;
-
       const soundName = preset || currentSound;
+      const p = SOUND_PRESETS[soundName];
+      if (!p) return;
+
       setCurrentSound(soundName);
-      buildSoundGraph(soundName, ctx, masterGain);
+      stopAllSound();
+
+      if (p.type === "audio") {
+        // Use HTML <audio> for file-based sounds (iOS background playback)
+        playHtmlAudio(p.src, volume);
+      } else {
+        // Use Web Audio API for synthesized sounds
+        const ctx = getAudioContext();
+        const masterGain = ctx.createGain();
+        masterGain.gain.value = volume;
+        masterGain.connect(ctx.destination);
+        gainRef.current = masterGain;
+        buildSynthGraph(soundName, ctx, masterGain);
+      }
+
       setIsPlaying(true);
+      updateMediaSession(soundName, true);
 
       // Start session timer
       startTimeRef.current = Date.now();
@@ -298,30 +332,33 @@ export function useSoundEngine() {
 
         if (bedtimeTimerRef.current) clearInterval(bedtimeTimerRef.current);
         bedtimeTimerRef.current = setInterval(() => {
-          const elapsed = Date.now() - bedtimeStartRef.current;
-          const remaining = Math.max(0, Math.ceil((totalBedtimeMs - elapsed) / 1000));
-          setBedtimeTimeLeft(remaining);
+          const el = Date.now() - bedtimeStartRef.current;
+          const rem = Math.max(0, Math.ceil((totalBedtimeMs - el) / 1000));
+          setBedtimeTimeLeft(rem);
 
           // Fade volume
-          const progress = Math.min(elapsed / totalBedtimeMs, 1);
+          const progress = Math.min(el / totalBedtimeMs, 1);
           const fadedVolume = volume * (1 - progress);
-          if (gainRef.current) {
-            gainRef.current.gain.setValueAtTime(fadedVolume, ctx.currentTime);
+
+          if (playingTypeRef.current === "htmlAudio" && htmlAudioRef.current) {
+            htmlAudioRef.current.volume = fadedVolume;
+          } else if (playingTypeRef.current === "webAudio" && gainRef.current && audioCtxRef.current) {
+            gainRef.current.gain.setValueAtTime(fadedVolume, audioCtxRef.current.currentTime);
           }
 
-          if (remaining <= 0) {
+          if (rem <= 0) {
             clearInterval(bedtimeTimerRef.current);
-            // Auto stop
             stop();
           }
         }, 1000);
       }
     },
-    [getAudioContext, currentSound, volume, buildSoundGraph, bedtimeEnabled, bedtimeDuration]
+    [getAudioContext, currentSound, volume, buildSynthGraph, playHtmlAudio, stopAllSound, bedtimeEnabled, bedtimeDuration, updateMediaSession]
   );
 
   const stop = useCallback(() => {
-    stopAllNodes();
+    stopAllSound();
+
     if (gainRef.current) {
       try { gainRef.current.disconnect(); } catch (e) {}
       gainRef.current = null;
@@ -336,6 +373,7 @@ export function useSoundEngine() {
     }
     setIsPlaying(false);
     setBedtimeTimeLeft(null);
+    updateMediaSession(currentSound, false);
 
     // Save session to localStorage if it was meaningful (>30s)
     if (elapsedSeconds > 30) {
@@ -349,7 +387,7 @@ export function useSoundEngine() {
       });
       localStorage.setItem("earbliss_sessions", JSON.stringify(sessions.slice(0, 100)));
     }
-  }, [stopAllNodes, elapsedSeconds, currentSound]);
+  }, [stopAllSound, elapsedSeconds, currentSound, updateMediaSession]);
 
   const togglePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -362,18 +400,35 @@ export function useSoundEngine() {
   const changeSound = useCallback(
     (preset) => {
       if (isPlaying) {
-        const ctx = getAudioContext();
-        buildSoundGraph(preset, ctx, gainRef.current);
+        const p = SOUND_PRESETS[preset];
+        if (!p) return;
+
+        stopAllSound();
+
+        if (p.type === "audio") {
+          playHtmlAudio(p.src, volume);
+        } else {
+          const ctx = getAudioContext();
+          const masterGain = ctx.createGain();
+          masterGain.gain.value = volume;
+          masterGain.connect(ctx.destination);
+          gainRef.current = masterGain;
+          buildSynthGraph(preset, ctx, masterGain);
+        }
+
+        updateMediaSession(preset, true);
       }
       setCurrentSound(preset);
     },
-    [isPlaying, getAudioContext, buildSoundGraph]
+    [isPlaying, getAudioContext, buildSynthGraph, playHtmlAudio, stopAllSound, volume, updateMediaSession]
   );
 
   const changeVolume = useCallback(
     (newVol) => {
       setVolume(newVol);
-      if (gainRef.current && audioCtxRef.current) {
+      if (playingTypeRef.current === "htmlAudio" && htmlAudioRef.current) {
+        htmlAudioRef.current.volume = newVol;
+      } else if (playingTypeRef.current === "webAudio" && gainRef.current && audioCtxRef.current) {
         gainRef.current.gain.setValueAtTime(newVol, audioCtxRef.current.currentTime);
       }
     },
@@ -383,35 +438,47 @@ export function useSoundEngine() {
   const changeCustomFrequency = useCallback(
     (freq) => {
       setCustomFrequency(freq);
-      // If currently playing the custom preset, rebuild the graph with new frequency
       if (isPlaying && currentSound === "Custom Hz") {
         const ctx = getAudioContext();
-        // We need to rebuild — but customFrequency state won't be updated yet,
-        // so directly create the oscillator at the new frequency
-        stopAllNodes();
-        const p = SOUND_PRESETS["Custom Hz"];
+        stopWebAudioNodes();
         const osc = ctx.createOscillator();
-        osc.type = p.type || "sine";
+        osc.type = "sine";
         osc.frequency.value = freq;
         osc.connect(gainRef.current);
         osc.start();
         nodesRef.current.osc = osc;
       }
     },
-    [isPlaying, currentSound, getAudioContext, stopAllNodes]
+    [isPlaying, currentSound, getAudioContext, stopWebAudioNodes]
   );
+
+  // Set up Media Session action handlers
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    navigator.mediaSession.setActionHandler("play", () => {
+      if (!isPlaying) play();
+    });
+    navigator.mediaSession.setActionHandler("pause", () => {
+      if (isPlaying) stop();
+    });
+    navigator.mediaSession.setActionHandler("stop", () => {
+      if (isPlaying) stop();
+    });
+  }, [isPlaying, play, stop]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (bedtimeTimerRef.current) clearInterval(bedtimeTimerRef.current);
-      stopAllNodes();
+      stopWebAudioNodes();
+      stopHtmlAudio();
       if (audioCtxRef.current) {
         try { audioCtxRef.current.close(); } catch (e) {}
       }
     };
-  }, [stopAllNodes]);
+  }, [stopWebAudioNodes, stopHtmlAudio]);
 
   const remaining = Math.max(0, sessionDuration - elapsedSeconds);
 
