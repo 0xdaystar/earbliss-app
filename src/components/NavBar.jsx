@@ -9,7 +9,7 @@ const navItems = [
 ];
 
 export default function NavBar({ active }) {
-  const { t, dark, setDark, setScreen, setAppView } = useApp();
+  const { t, dark, setDark, navigateWithAuth } = useApp();
 
   return (
     <div
@@ -27,10 +27,7 @@ export default function NavBar({ active }) {
       {navItems.map((item) => (
         <div
           key={item.id}
-          onClick={() => {
-            setScreen(item.id);
-            setAppView("main");
-          }}
+          onClick={() => navigateWithAuth(item.id)}
           style={{ textAlign: "center", cursor: "pointer" }}
         >
           <item.Icon size={22} color={active === item.id ? t.accent : t.textMuted} />

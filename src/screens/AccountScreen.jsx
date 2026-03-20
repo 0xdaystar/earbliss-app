@@ -14,7 +14,7 @@ import { useApp } from "../context/AppContext";
 
 
 export default function AccountScreen({ progress, isDesktop }) {
-  const { t, dark, setDark, loggedIn, setLoggedIn, setAppView } = useApp();
+  const { t, dark, setDark, loggedIn, user, setAppView, signOut } = useApp();
 
   if (!loggedIn) {
     return (
@@ -30,10 +30,6 @@ export default function AccountScreen({ progress, isDesktop }) {
             width: "100%", maxWidth: 280, padding: "16px", borderRadius: 14, textAlign: "center",
             background: t.accent, color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer",
           }}>Sign In</div>
-          <div style={{ marginTop: 16 }}>
-            <span style={{ fontSize: 13, color: t.textMuted }}>New member? </span>
-            <span onClick={() => setAppView("onboarding")} style={{ fontSize: 13, color: t.accent, fontWeight: 600, cursor: "pointer" }}>Get Started</span>
-          </div>
         </div>
       </div>
     );
@@ -63,7 +59,7 @@ export default function AccountScreen({ progress, isDesktop }) {
             <User size={26} color={t.accent} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: t.text }}>EarBliss User</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: t.text }}>{user?.email ?? "EarBliss User"}</div>
             <div style={{ fontSize: 11, color: t.green, fontWeight: 600, marginTop: 4 }}>Active Member</div>
           </div>
         </div>
@@ -175,7 +171,7 @@ export default function AccountScreen({ progress, isDesktop }) {
       {/* Log out */}
       <div style={{ padding: isDesktop ? "20px 40px 24px" : "20px 24px 24px" }}>
         <div
-          onClick={() => { setLoggedIn(false); setAppView("main"); }}
+          onClick={signOut}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             padding: "14px", borderRadius: 14,
@@ -187,8 +183,6 @@ export default function AccountScreen({ progress, isDesktop }) {
           <span style={{ fontSize: 14, fontWeight: 600, color: t.red }}>Log Out</span>
         </div>
       </div>
-
-      {!isDesktop && <NavBar active="account" />}
     </div>
   );
 }

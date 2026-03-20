@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Loader } from "lucide-react";
 import { useApp } from "../context/AppContext";
-
 
 const quizQuestions = [
   {
@@ -31,9 +30,10 @@ const quizQuestions = [
 ];
 
 export default function OnboardingScreen({ isDesktop }) {
-  const { t, dark, setLoggedIn, setAppView } = useApp();
+  const { t, dark, completeOnboarding } = useApp();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const isResults = step >= quizQuestions.length;
   const currentQ = quizQuestions[step];
@@ -80,11 +80,24 @@ export default function OnboardingScreen({ isDesktop }) {
             ))}
           </div>
 
-          <div onClick={() => { setLoggedIn(true); setAppView("main"); }} style={{
-            width: "100%", padding: "16px", borderRadius: 14, textAlign: "center",
-            background: t.accent, color: "white", fontSize: 16, fontWeight: 700,
-            cursor: "pointer", boxShadow: `0 4px 16px ${dark ? "rgba(91,141,239,0.3)" : "rgba(59,111,212,0.2)"}`,
-          }}>Start Your Relief Program</div>
+          <div
+            onClick={async () => {
+              if (saving) return;
+              setSaving(true);
+              await completeOnboarding(answers);
+            }}
+            style={{
+              width: "100%", padding: "16px", borderRadius: 14, textAlign: "center",
+              background: t.accent, color: "white", fontSize: 16, fontWeight: 700,
+              cursor: saving ? "default" : "pointer",
+              boxShadow: `0 4px 16px ${dark ? "rgba(91,141,239,0.3)" : "rgba(59,111,212,0.2)"}`,
+              opacity: saving ? 0.6 : 1,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            {saving ? <><Loader size={18} style={{ animation: "spin 1s linear infinite" }} /> Saving...</> : "Start Your Relief Program"}
+          </div>
+          {saving && <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>}
         </div>
       </div>
     );
@@ -144,10 +157,6 @@ export default function OnboardingScreen({ isDesktop }) {
         </div>
       )}
 
-      {/* Skip link */}
-      <div style={{ textAlign: "center", padding: "0 24px 20px" }}>
-        <span onClick={() => setAppView("main")} style={{ fontSize: 13, color: t.textMuted, cursor: "pointer" }}>Skip for now</span>
-      </div>
     </div>
   );
 }

@@ -10,11 +10,13 @@ import RedLightScreen from "./screens/RedLightScreen";
 import ProgressScreen from "./screens/ProgressScreen";
 import AccountScreen from "./screens/AccountScreen";
 import LoginScreen from "./screens/LoginScreen";
+import LoginModal from "./components/LoginModal";
+import Logo from "./components/Logo";
 import OnboardingScreen from "./screens/OnboardingScreen";
 import DailyCheckin from "./screens/DailyCheckin";
 
 function AppShell() {
-  const { screen, appView, t, dark } = useApp();
+  const { screen, appView, t, dark, authLoading, showLoginModal } = useApp();
   const soundEngine = useSoundEngine();
   const redLightTimer = useRedLightTimer();
   const progress = useProgress();
@@ -38,7 +40,17 @@ function AppShell() {
   const showNav = !isDesktop && appView === "main";
 
   let content;
-  if (appView === "login") {
+  if (appView === "loading") {
+    content = (
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 12,
+      }}>
+        <Logo height={44} />
+        <div style={{ fontSize: 13, color: t.textMuted }}>Loading...</div>
+      </div>
+    );
+  } else if (appView === "login") {
     content = <LoginScreen isDesktop={isDesktop} />;
   } else if (appView === "onboarding") {
     content = <OnboardingScreen isDesktop={isDesktop} />;
@@ -89,6 +101,7 @@ function AppShell() {
         </div>
         {showNav && <NavBar active={screen} />}
       </div>
+      {showLoginModal && <LoginModal />}
     </div>
   );
 }

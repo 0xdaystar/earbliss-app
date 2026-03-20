@@ -1,5 +1,6 @@
 import { Music, Sun, BarChart3, User, Moon } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import Logo from "./Logo";
 
 const navItems = [
   { id: "therapy", label: "Sound Therapy", Icon: Music },
@@ -9,7 +10,7 @@ const navItems = [
 ];
 
 export default function DesktopSidebar() {
-  const { t, dark, setDark, screen, setScreen, setAppView } = useApp();
+  const { t, dark, setDark, screen, navigateWithAuth } = useApp();
 
   return (
     <div
@@ -25,20 +26,15 @@ export default function DesktopSidebar() {
       }}
     >
       <div style={{ padding: "0 20px 24px", borderBottom: `1px solid ${t.border}` }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: t.text }}>
-          Ear<span style={{ color: t.accent }}>Bliss</span>
-        </div>
-        <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+        <Logo height={28} />
+        <div style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>
           Tinnitus Relief Program
         </div>
       </div>
       {navItems.map((item) => (
         <div
           key={item.id}
-          onClick={() => {
-            setScreen(item.id);
-            setAppView("main");
-          }}
+          onClick={() => navigateWithAuth(item.id)}
           style={{
             display: "flex",
             alignItems: "center",
