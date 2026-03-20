@@ -101,10 +101,8 @@ export default function ProgressScreen({ progress, isDesktop }) {
     recentSessions,
   } = progress;
 
-  // Generate chart bars from severity trend or placeholder
-  const chartBars = severityTrend.length > 0
-    ? severityTrend
-    : [85, 82, 78, 80, 72, 68, 70, 62, 65, 58, 55, 52, 48, 50, 45, 42, 40, 38, 42, 36, 34, 32, 35, 30, 28, 32, 26, 24, 28, 22].map((v) => v);
+  const hasChartData = severityTrend.length > 0;
+  const chartBars = severityTrend;
 
   const moodIcons = [
     { icon: Smile, label: "Great", color: t.green },
@@ -140,33 +138,46 @@ export default function ProgressScreen({ progress, isDesktop }) {
       <div style={{ padding: isDesktop ? "24px 40px 0" : "20px 24px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ fontSize: 16, fontWeight: 600, color: t.text }}>Tinnitus Severity</div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: t.accent, background: t.accentGlow, padding: "5px 12px", borderRadius: 20 }}>Last 30 Days</div>
+          {hasChartData && <div style={{ fontSize: 11, fontWeight: 600, color: t.accent, background: t.accentGlow, padding: "5px 12px", borderRadius: 20 }}>Last 30 Days</div>}
         </div>
-        <div style={{ background: t.bgCard, borderRadius: 16, padding: "20px 16px 16px", border: `1px solid ${t.border}` }}>
-          <div style={{ display: "flex", height: 130 }}>
-            <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 10, color: t.textMuted, width: 28, paddingRight: 6 }}>
-              <span>High</span><span>Mid</span><span>Low</span>
-            </div>
-            <div style={{ flex: 1, position: "relative" }}>
-              {[0, 50, 100].map((top, i) => (
-                <div key={i} style={{ position: "absolute", top: `${top}%`, left: 0, right: 0, height: 1, background: t.border }} />
-              ))}
-              <div style={{ display: "flex", alignItems: "flex-end", height: "100%", gap: 3, padding: "0 2px" }}>
-                {chartBars.map((v, i) => (
-                  <div key={i} style={{
-                    flex: 1, height: `${v}%`, borderRadius: 2, minWidth: 2,
-                    background: v > 60 ? (dark ? "rgba(239,107,107,0.6)" : "rgba(212,80,80,0.5)")
-                      : v > 40 ? (dark ? "rgba(251,191,36,0.6)" : "rgba(212,147,13,0.5)")
-                      : (dark ? "rgba(74,222,128,0.6)" : "rgba(45,138,86,0.5)")
-                  }} />
+        {hasChartData ? (
+          <div style={{ background: t.bgCard, borderRadius: 16, padding: "20px 16px 16px", border: `1px solid ${t.border}` }}>
+            <div style={{ display: "flex", height: 130 }}>
+              <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 10, color: t.textMuted, width: 28, paddingRight: 6 }}>
+                <span>High</span><span>Mid</span><span>Low</span>
+              </div>
+              <div style={{ flex: 1, position: "relative" }}>
+                {[0, 50, 100].map((top, i) => (
+                  <div key={i} style={{ position: "absolute", top: `${top}%`, left: 0, right: 0, height: 1, background: t.border }} />
                 ))}
+                <div style={{ display: "flex", alignItems: "flex-end", height: "100%", gap: 3, padding: "0 2px" }}>
+                  {chartBars.map((v, i) => (
+                    <div key={i} style={{
+                      flex: 1, height: `${v}%`, borderRadius: 2, minWidth: 2,
+                      background: v > 60 ? (dark ? "rgba(239,107,107,0.6)" : "rgba(212,80,80,0.5)")
+                        : v > 40 ? (dark ? "rgba(251,191,36,0.6)" : "rgba(212,147,13,0.5)")
+                        : (dark ? "rgba(74,222,128,0.6)" : "rgba(45,138,86,0.5)")
+                    }} />
+                  ))}
+                </div>
               </div>
             </div>
+            <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: 28, paddingTop: 8, fontSize: 10, color: t.textMuted }}>
+              <span>Week 1</span><span>Week 2</span><span>Week 3</span><span>Week 4</span>
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: 28, paddingTop: 8, fontSize: 10, color: t.textMuted }}>
-            <span>Week 1</span><span>Week 2</span><span>Week 3</span><span>Week 4</span>
+        ) : (
+          <div style={{
+            background: t.bgCard, borderRadius: 16, padding: "32px 20px",
+            border: `1px solid ${t.border}`, textAlign: "center",
+          }}>
+            <BarChart3 size={32} color={t.textMuted} style={{ marginBottom: 10 }} />
+            <div style={{ fontSize: 14, fontWeight: 600, color: t.textSec, marginBottom: 4 }}>No data yet</div>
+            <div style={{ fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
+              Complete daily check-ins to start tracking your tinnitus severity over time.
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Weekly summary */}

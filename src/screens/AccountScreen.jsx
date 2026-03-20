@@ -1,9 +1,5 @@
 import {
   User,
-  Bell,
-  Shield,
-  Settings,
-  HelpCircle,
   Mail,
   ChevronRight,
   LogOut,
@@ -117,55 +113,31 @@ export default function AccountScreen({ progress, isDesktop }) {
         </div>
       </div>
 
-      {/* Settings menu */}
+      {/* Contact */}
       <div style={{ padding: isDesktop ? "20px 40px 0" : "16px 24px 0" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: t.textSec, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>Settings</div>
-        {[
-          { icon: Bell, label: "Notifications", desc: "Session reminders & updates" },
-          { icon: Shield, label: "Privacy", desc: "Data & account privacy" },
-          { icon: Settings, label: "App Settings", desc: "Sounds, preferences" },
-          { icon: HelpCircle, label: "Help & Support", desc: "FAQ, contact, troubleshooting" },
-          { icon: Mail, label: "Contact Us", desc: "support@myearbliss.com" },
-        ].map((item, i) => (
-          <div key={i} style={{
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.textSec, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>Support</div>
+        <a
+          href="mailto:support@myearbliss.com"
+          style={{ textDecoration: "none" }}
+        >
+          <div style={{
             display: "flex", alignItems: "center", gap: 14,
             padding: "14px 16px", background: t.bgCard, borderRadius: 14,
-            border: `1px solid ${t.border}`, marginBottom: 8, cursor: "pointer"
+            border: `1px solid ${t.border}`, cursor: "pointer"
           }}>
             <div style={{
               width: 38, height: 38, borderRadius: 10,
               background: t.accentGlow, display: "flex", alignItems: "center", justifyContent: "center"
             }}>
-              <item.icon size={18} color={t.accent} />
+              <Mail size={18} color={t.accent} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{item.label}</div>
-              <div style={{ fontSize: 12, color: t.textMuted }}>{item.desc}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Contact Us</div>
+              <div style={{ fontSize: 12, color: t.textMuted }}>support@myearbliss.com</div>
             </div>
             <ChevronRight size={16} color={t.textMuted} />
           </div>
-        ))}
-      </div>
-
-      {/* Ebook resource */}
-      <div style={{ padding: isDesktop ? "16px 40px 0" : "12px 24px 0" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: t.textSec, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>Your Resources</div>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 14,
-          padding: "14px 16px", background: t.bgCard, borderRadius: 14,
-          border: `1px solid ${t.border}`, cursor: "pointer"
-        }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 10,
-            background: t.greenBg, display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18
-          }}>📖</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Tinnitus Relief Ebook</div>
-            <div style={{ fontSize: 12, color: t.textMuted }}>30 Ways to Manage and Relieve Tinnitus</div>
-          </div>
-          <ChevronRight size={16} color={t.textMuted} />
-        </div>
+        </a>
       </div>
 
       {/* Log out */}
